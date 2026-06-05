@@ -1,0 +1,81 @@
+{
+  "name": "Daily Brief — resumen diario con IA",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0001-4a00-8000-000000000001",
+      "name": "Cada día a las 8:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "command": "python3 /ruta/a/daily-brief/src/main.py --json"
+      },
+      "id": "a1b2c3d4-0002-4a00-8000-000000000002",
+      "name": "Generar digest",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// La salida del script llega como texto en stdout: lo parseamos\n// y dejamos el digest listo para enviar.\nconst raw = $input.first().json.stdout || '{}';\nconst data = JSON.parse(raw);\nreturn [{ json: data }];"
+      },
+      "id": "a1b2c3d4-0003-4a00-8000-000000000003",
+      "name": "Parsear salida",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "={{ $json.digest }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "a1b2c3d4-0004-4a00-8000-000000000004",
+      "name": "Enviar a Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [900, 300],
+      "credentials": {
+        "telegramApi": {
+          "id": "REEMPLAZA_CON_TU_CREDENCIAL",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Cada día a las 8:00": {
+      "main": [[{ "node": "Generar digest", "type": "main", "index": 0 }]]
+    },
+    "Generar digest": {
+      "main": [[{ "node": "Parsear salida", "type": "main", "index": 0 }]]
+    },
+    "Parsear salida": {
+      "main": [[{ "node": "Enviar a Telegram", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

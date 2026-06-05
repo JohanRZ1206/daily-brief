@@ -1,0 +1,17 @@
+# Secretos y configuración local
+.env
+config.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Editores / sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
