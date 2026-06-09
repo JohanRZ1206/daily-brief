@@ -1,4 +1,6 @@
-anthropic>=0.40.0
 feedparser>=6.0.0
 requests>=2.31.0
 python-dotenv>=1.0.0
+# Proveedores de IA (instala el que vayas a usar; ambos funcionan):
+openai>=1.40.0
+anthropic>=0.40.0

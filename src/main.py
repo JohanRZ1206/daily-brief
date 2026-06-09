@@ -19,6 +19,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -46,9 +47,22 @@ for _stream in (sys.stdout, sys.stderr):
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_FILE = BASE_DIR / "config.json"
 
-# Modelo de Claude. claude-opus-4-8 es el más capaz; puedes cambiarlo por uno
-# más barato (p.ej. claude-haiku-4-5) poniendo ANTHROPIC_MODEL en tu .env.
-DEFAULT_MODEL = "claude-opus-4-8"
+# Proveedor de IA: "openai" (por defecto) o "anthropic". Se elige con LLM_PROVIDER
+# en el .env. Cada proveedor usa su propia API key (OPENAI_API_KEY / ANTHROPIC_API_KEY)
+# y su modelo se puede fijar con OPENAI_MODEL / ANTHROPIC_MODEL.
+DEFAULT_PROVIDER = "openai"
+DEFAULT_MODELS = {
+    "openai": "gpt-4o-mini",          # barato y capaz; sube a "gpt-4o" para más calidad
+    "anthropic": "claude-haiku-4-5",  # barato; sube a "claude-opus-4-8" para más calidad
+}
+
+# Instrucciones del resumen, comunes a cualquier proveedor.
+SYSTEM_PROMPT = (
+    "Eres un asistente que crea un resumen diario de noticias en español. "
+    "Devuelve un digest claro y escaneable en TEXTO PLANO (sin Markdown, sin "
+    "asteriscos). Agrupa por temas si tiene sentido, máximo una línea por "
+    "artículo, e incluye el enlace al final de cada punto. Sé conciso."
+)
 
 
 def load_config() -> dict:
@@ -63,14 +77,31 @@ def load_config() -> dict:
         return json.load(f)
 
 
-def fetch_feed_items(feeds: list[str], max_per_feed: int) -> list[dict]:
-    """Descarga cada feed RSS y devuelve los artículos más recientes."""
+def fetch_feed_items(feeds: list[str], max_per_feed: int, retries: int = 3) -> list[dict]:
+    """
+    Descarga cada feed RSS y devuelve los artículos más recientes.
+
+    Algunos feeds fallan de forma intermitente (timeouts, errores transitorios:
+    p.ej. hnrss.org). Reintentamos un par de veces antes de rendirnos y avisamos
+    si un feed se queda sin artículos, en vez de dejar el digest incompleto en
+    silencio.
+    """
     import feedparser  # import perezoso: solo se necesita en modo real
 
     items: list[dict] = []
     for url in feeds:
         print(f"→ Leyendo feed: {url}", file=sys.stderr)
-        parsed = feedparser.parse(url)
+        parsed = None
+        for intento in range(1, retries + 1):
+            parsed = feedparser.parse(url)
+            if parsed.entries:
+                break
+            if intento < retries:
+                print(f"  · sin respuesta válida, reintento {intento}/{retries - 1}…", file=sys.stderr)
+                time.sleep(2)
+        if not parsed.entries:
+            print(f"  ! Feed sin artículos tras {retries} intentos, se omite: {url}", file=sys.stderr)
+            continue
         source = parsed.feed.get("title", url)
         for entry in parsed.entries[:max_per_feed]:
             items.append(
@@ -92,24 +123,50 @@ def build_prompt(items: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def summarize_with_claude(items: list[dict]) -> str:
-    """Resume los artículos en un digest breve usando la API de Claude."""
+def summarize_with_ai(items: list[dict]) -> str:
+    """
+    Resume los artículos en un digest breve usando IA.
+
+    Elige el proveedor con LLM_PROVIDER ("openai" por defecto, o "anthropic").
+    Así el mismo código sirve con créditos de OpenAI o con la API de Claude.
+    """
+    provider = os.getenv("LLM_PROVIDER", DEFAULT_PROVIDER).lower()
+    prompt = build_prompt(items)
+    if provider == "anthropic":
+        return _summarize_anthropic(prompt)
+    if provider == "openai":
+        return _summarize_openai(prompt)
+    raise ValueError(f"LLM_PROVIDER desconocido: {provider!r} (usa 'openai' o 'anthropic')")
+
+
+def _summarize_openai(prompt: str) -> str:
+    """Resumen con la API de OpenAI (chat completions)."""
+    from openai import OpenAI  # import perezoso: solo se necesita en modo real
+
+    model = os.getenv("OPENAI_MODEL", DEFAULT_MODELS["openai"])
+    client = OpenAI()  # lee OPENAI_API_KEY del entorno
+    response = client.chat.completions.create(
+        model=model,
+        max_tokens=1500,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+    )
+    return (response.choices[0].message.content or "").strip()
+
+
+def _summarize_anthropic(prompt: str) -> str:
+    """Resumen con la API de Claude (messages)."""
     import anthropic  # import perezoso: solo se necesita en modo real
 
-    model = os.getenv("ANTHROPIC_MODEL", DEFAULT_MODEL)
+    model = os.getenv("ANTHROPIC_MODEL", DEFAULT_MODELS["anthropic"])
     client = anthropic.Anthropic()  # lee ANTHROPIC_API_KEY del entorno
-
-    system = (
-        "Eres un asistente que crea un resumen diario de noticias en español. "
-        "Devuelve un digest claro y escaneable en TEXTO PLANO (sin Markdown, sin "
-        "asteriscos). Agrupa por temas si tiene sentido, máximo una línea por "
-        "artículo, e incluye el enlace al final de cada punto. Sé conciso."
-    )
     response = client.messages.create(
         model=model,
         max_tokens=1500,
-        system=system,
-        messages=[{"role": "user", "content": build_prompt(items)}],
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": prompt}],
     )
     return next((b.text for b in response.content if b.type == "text"), "").strip()
 
@@ -164,7 +221,7 @@ def run(demo: bool, json_mode: bool) -> None:
         if not items:
             print("No se encontraron artículos en los feeds.", file=sys.stderr)
             return
-        digest = summarize_with_claude(items)
+        digest = summarize_with_ai(items)
 
     payload = {
         "digest": digest,

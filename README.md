@@ -1,17 +1,17 @@
 # 🤖 Daily Brief
 
-> Cada mañana recoge tus fuentes RSS favoritas, las resume con IA (Claude) y te manda un digest limpio a Telegram. Python para la lógica, n8n para la automatización.
+> Cada mañana recoge tus fuentes RSS favoritas, las resume con IA (OpenAI o Claude) y te manda un digest limpio a Telegram. Python para la lógica, n8n para la automatización.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
-![Claude](https://img.shields.io/badge/IA-Claude_API-D97757)
+![IA](https://img.shields.io/badge/IA-OpenAI_o_Claude-412991)
 ![n8n](https://img.shields.io/badge/n8n-automation-EA4B71?logo=n8n&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 ## ¿Qué hace?
 
-Leer 10 fuentes cada mañana cansa; un resumen de 30 segundos no. **Daily Brief** consulta los feeds RSS que tú elijas, manda los titulares a la API de Claude para que los resuma en un digest escaneable, y te lo entrega por Telegram a la hora que quieras.
+Leer 10 fuentes cada mañana cansa; un resumen de 30 segundos no. **Daily Brief** consulta los feeds RSS que tú elijas, manda los titulares a una API de IA (OpenAI o Claude, tú decides) para que los resuma en un digest escaneable, y te lo entrega por Telegram a la hora que quieras.
 
-Combina **dos cosas que se venden muy bien juntas**: automatización programada (n8n) e IA aplicada (resumen con Claude). Funciona de dos formas con el mismo código:
+Combina **dos cosas que se venden muy bien juntas**: automatización programada (n8n) e IA aplicada (resumen con OpenAI o Claude, elegible con una variable de entorno). Funciona de dos formas con el mismo código:
 
 - **Como script** programado con cron (Python genera y envía el digest).
 - **Como workflow de n8n**, donde Python genera el digest y n8n lo entrega.
@@ -26,7 +26,7 @@ Combina **dos cosas que se venden muy bien juntas**: automatización programada 
 | Capa | Herramienta |
 |---|---|
 | Lógica | Python (`feedparser`, `requests`) |
-| IA | API de Claude (`anthropic`, modelo `claude-opus-4-8`) |
+| IA | OpenAI (`openai`) o Claude (`anthropic`), elegible con `LLM_PROVIDER` |
 | Configuración | JSON + variables de entorno (`python-dotenv`) |
 | Entrega | API de Telegram Bot |
 | Orquestación | n8n (Schedule Trigger) o cron |
@@ -39,7 +39,7 @@ cd daily-brief
 pip install -r requirements.txt
 
 cp config.example.json config.json   # pon tus feeds RSS
-cp .env.example .env                  # pon tu ANTHROPIC_API_KEY y tu bot de Telegram
+cp .env.example .env                  # pon tu API key (OpenAI o Claude) y tu bot de Telegram
 ```
 
 > En Windows usa `copy` en lugar de `cp`.
@@ -63,7 +63,7 @@ python src/main.py --demo
 {
   "feeds": [
     "https://hnrss.org/frontpage",
-    "https://www.xataka.com/tag/feeds/rss2.xml"
+    "https://www.xataka.com/index.xml"
   ],
   "max_items_per_feed": 5
 }
@@ -73,8 +73,11 @@ python src/main.py --demo
 
 | Variable | Para qué |
 |---|---|
-| `ANTHROPIC_API_KEY` | Acceso a la API de Claude (obligatoria en modo real) |
-| `ANTHROPIC_MODEL` | (Opcional) modelo a usar; por defecto `claude-opus-4-8` |
+| `LLM_PROVIDER` | `openai` (por defecto) o `anthropic`. Elige qué IA resume |
+| `OPENAI_API_KEY` | Acceso a la API de OpenAI (si usas ese proveedor) |
+| `OPENAI_MODEL` | (Opcional) modelo OpenAI; por defecto `gpt-4o-mini` |
+| `ANTHROPIC_API_KEY` | Acceso a la API de Claude (si usas ese proveedor) |
+| `ANTHROPIC_MODEL` | (Opcional) modelo Claude; por defecto `claude-haiku-4-5` |
 | `TELEGRAM_BOT_TOKEN` | Bot que envía el digest |
 | `TELEGRAM_CHAT_ID` | Chat donde lo recibes |
 
@@ -94,6 +97,8 @@ Detalle en [`docs/arquitectura.md`](docs/arquitectura.md).
 ## Roadmap
 
 - [x] Resumen de feeds RSS con IA
+- [x] Soporte multi-proveedor de IA (OpenAI o Claude) elegible por configuración
+- [x] Lectura de feeds robusta con reintentos ante fallos transitorios
 - [x] Entrega por Telegram
 - [x] Modo `--json` para n8n y modo `--demo` sin dependencias
 - [ ] Filtrado por palabras clave / temas de interés

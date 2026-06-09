@@ -2,7 +2,7 @@
   "_nota": "Copia este archivo a config.json y pon tus feeds RSS favoritos.",
   "feeds": [
     "https://hnrss.org/frontpage",
-    "https://www.xataka.com/tag/feeds/rss2.xml"
+    "https://www.xataka.com/index.xml"
   ],
   "max_items_per_feed": 5
 }
