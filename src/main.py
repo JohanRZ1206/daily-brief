@@ -2,7 +2,7 @@
 Daily Brief — resumen diario de tus fuentes RSS, resumido con IA, a tu Telegram.
 
 Lee una lista de feeds RSS desde config.json, recoge los artículos recientes,
-los resume con la API de Claude y te manda un digest limpio por Telegram.
+los resume con IA (OpenAI o Claude, elegible) y te manda un digest por Telegram.
 
 Modos de ejecución:
   - Standalone:  python src/main.py            (recoge, resume y envía a Telegram)
@@ -116,7 +116,7 @@ def fetch_feed_items(feeds: list[str], max_per_feed: int, retries: int = 3) -> l
 
 
 def build_prompt(items: list[dict]) -> str:
-    """Construye el texto que mandamos a Claude con los artículos."""
+    """Construye el texto que mandamos a la IA con los artículos."""
     lines = ["Artículos de hoy:\n"]
     for i, it in enumerate(items, 1):
         lines.append(f"{i}. [{it['source']}] {it['title']}\n   {it['summary']}\n   {it['link']}")
